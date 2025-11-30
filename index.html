@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="midnight">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>QuranCosmos: Final</title>
+    
+    <!-- FONTS -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&family=Scheherazade+New:wght@400;700&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- ICONS & FX -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        /* --- THEME --- */
+        :root {
+            --bg-body: #020617; 
+            --bg-card: #0f172a; 
+            --nav-bg: rgba(15, 23, 42, 0.95);
+            --primary: #10b981; 
+            --accent: #6366f1; 
+            --gold: #f59e0b; 
+            --danger: #ef4444;
+            --text-main: #f8fafc; 
+            --text-muted: #94a3b8; 
+            --border: rgba(255,255,255,0.1);
+            --font-scale: 1.6;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body { 
+            font-family: 'Outfit', sans-serif; 
+            background: var(--bg-body); 
+            color: var(--text-main); 
+            margin: 0; height: 100vh; 
+            display: flex; flex-direction: column; 
+            overflow: hidden; user-select: none; 
+            transition: background 0.3s; 
+        }
+
+        /* RTL & FONT SUPPORT */
+        body.lang-ur { font-family: 'Noto Nastaliq Urdu', serif; direction: rtl; }
+        body.lang-ur .logo-text, body.lang-ur .node-num { font-family: 'Outfit', sans-serif; direction: ltr; }
+
+        /* --- BACKGROUND --- */
+        .ambient-glow { position: fixed; inset: 0; z-index: -1; background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.15), transparent 70%); }
+        .star { position: absolute; background: white; border-radius: 50%; animation: twinkle 4s infinite; }
+        @keyframes twinkle { 0%, 100% { opacity: 0.2; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.5); } }
+
+        /* --- TYPOGRAPHY --- */
+        .ar-font { font-family: 'Scheherazade New', serif; font-weight: 700; font-size: calc(1rem * var(--font-scale)); line-height: 1.8; }
+        
+        .logo-text { 
+            font-size: clamp(2.5rem, 10vw, 4rem); 
+            font-weight: 900; letter-spacing: -1px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            margin: 0; padding: 0 10px; text-align: center;
+            line-height: 1.1;
+        }
+
+        /* --- UI HELPERS --- */
+        .hidden { display: none !important; }
+        .flex-center { display: flex; justify-content: center; align-items: center; }
+        .flex-col { display: flex; flex-direction: column; }
+        
+        /* --- HEADER --- */
+        .header {
+            padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;
+            background: var(--nav-bg); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); z-index: 50;
+        }
+        .xp-pill { 
+            background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 30px;
+            padding: 6px 14px; display: flex; align-items: center; gap: 6px; font-weight: 800; color: var(--gold);
+        }
+        .icon-btn { width: 40px; height: 40px; border-radius: 12px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s; }
+        .icon-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.1); }
+
+        /* --- MAP SYSTEM (FIXED PADDING) --- */
+        .tab-content { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; scroll-behavior: smooth; }
+
+        .map-wrapper { 
+            display: flex; flex-direction: column-reverse; /* Start from Bottom */
+            align-items: center; 
+            padding-top: 100px;    /* Space for Top */
+            padding-bottom: 150px; /* EXTRA SPACE FOR BOTTOM (Fixes Label cut-off) */
+            gap: 60px; 
+        }
+        .level-row { width: 100%; display: flex; justify-content: center; position: relative; }
+        .level-row:nth-child(odd) { padding-right: 30%; }
+        .level-row:nth-child(even) { padding-left: 30%; }
+
+        .planet-node {
+            width: 85px; height: 85px; border-radius: 40px;
+            background: var(--bg-card); border: 3px solid var(--border);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            position: relative; z-index: 2; transition: 0.3s;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5); cursor: pointer;
+        }
+        .planet-label {
+            position: absolute; bottom: -35px; white-space: nowrap;
+            font-size: 10px; font-weight: 700; color: var(--text-muted);
+            background: var(--bg-body); padding: 4px 10px; border-radius: 12px; border: 1px solid var(--border);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); z-index: 10;
+        }
+        
+        .planet-node.locked { opacity: 0.5; filter: grayscale(1); pointer-events: none; }
+        .planet-node.unlocked { background: radial-gradient(circle at 30% 30%, #38bdf8, #0c4a6e); }
+        .planet-node.current { border-color: var(--primary); transform: scale(1.2); animation: pulse 2s infinite; z-index: 3; background: var(--bg-card); }
+        .planet-node.completed { background: var(--primary); border-color: #059669; color: #020617; }
+        
+        /* Special Colors */
+        .planet-node.sec-fatiha { border-color: var(--gold); box-shadow: 0 0 25px rgba(245, 158, 11, 0.4); }
+        .planet-node.sec-juz30 { border-color: var(--accent); }
+        
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6); } 70% { box-shadow: 0 0 0 20px transparent; } }
+
+        /* QUESTS & SHOP */
+        .info-card { background: var(--bg-card); border: 1px solid var(--border); padding: 15px; border-radius: 16px; margin: 15px 20px; display: flex; align-items: center; gap: 15px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 20px; }
+        
+        /* BOTTOM NAV */
+        .nav-bar {
+            background: var(--nav-bg); backdrop-filter: blur(20px); border-top: 1px solid var(--border);
+            padding: 10px 0; display: flex; justify-content: space-around;
+            padding-bottom: max(15px, env(safe-area-inset-bottom)); z-index: 50;
+        }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); transition: 0.3s; cursor: pointer; }
+        .nav-item.active { color: var(--primary); transform: translateY(-4px); }
+        .nav-item span { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; }
+
+        /* --- GAME UI --- */
+        .game-screen { position: fixed; inset: 0; background: var(--bg-body); z-index: 100; display: flex; flex-direction: column; }
+        .game-stage { flex: 1; padding: 20px; max-width: 500px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; justify-content: center; }
+        
+        .q-card { 
+            background: linear-gradient(160deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)); 
+            border: 1px solid var(--border); border-radius: 24px; padding: 30px 20px; 
+            text-align: center; margin-bottom: 30px; box-shadow: 0 20px 50px -10px rgba(0,0,0,0.5);
+        }
+        
+        .audio-orb { 
+            width: 70px; height: 70px; border-radius: 50%; background: var(--accent); color: white; 
+            display: flex; justify-content: center; align-items: center; margin: 0 auto 15px; cursor: pointer; 
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4); transition: 0.2s;
+        }
+        .audio-orb:active { transform: scale(0.9); }
+        .audio-orb.playing { animation: wave 1s infinite; background: var(--primary); box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4); }
+        @keyframes wave { 0% { box-shadow: 0 0 0 0 var(--primary); } 100% { box-shadow: 0 0 0 25px transparent; } }
+
+        .drop-zone { 
+            min-height: 120px; border: 2px dashed var(--border); border-radius: 16px; margin-bottom: 20px; 
+            padding: 15px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; direction: rtl; 
+            transition: 0.3s; 
+        }
+        .drop-zone.active { border-color: var(--primary); background: rgba(16, 185, 129, 0.05); }
+
+        .chip { 
+            background: var(--bg-card); border: 1px solid var(--border); border-bottom: 4px solid #000; 
+            color: white; padding: 10px 24px; border-radius: 14px; cursor: pointer; transition: 0.1s; font-size: 20px; text-align: center;
+        }
+        .chip:active { transform: translateY(4px); border-bottom-width: 0; }
+        .chip.selected { border-color: var(--accent); background: rgba(99,102,241,0.2); }
+        
+        .mcq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; }
+
+        /* FOOTER & BUTTONS */
+        .footer { padding: 20px; background: rgba(0,0,0,0.8); border-top: 1px solid var(--border); }
+        .btn-main { 
+            width: 100%; padding: 18px; background: var(--primary); color: #020617; border: none; 
+            border-radius: 18px; font-weight: 800; font-size: 16px; letter-spacing: 1px; cursor: pointer; 
+            transition: 0.2s; box-shadow: 0 8px 20px rgba(16,185,129,0.3);
+        }
+        .btn-main:active { transform: scale(0.98); }
+        .btn-main:disabled { background: #334155; color: #64748b; box-shadow: none; cursor: not-allowed; }
+
+        /* SETTINGS DRAWER */
+        .drawer {
+            position: fixed; top: 0; right: 0; bottom: 0; width: 280px; background: var(--bg-card);
+            border-left: 1px solid var(--border); z-index: 200; padding: 20px;
+            transform: translateX(100%); transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: -10px 0 40px rgba(0,0,0,0.5);
+        }
+        .drawer.open { transform: translateX(0); }
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 150; opacity: 0; pointer-events: none; transition: 0.3s; }
+        .overlay.open { opacity: 1; pointer-events: all; }
+        
+        .lang-btn { width: 100%; padding: 12px; margin-bottom: 10px; background: var(--bg-body); border: 1px solid var(--border); color: white; border-radius: 10px; cursor: pointer; text-align: left; }
+        .lang-btn:hover { border-color: var(--primary); }
+
+        /* MODALS */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 200; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: 0.3s; }
+        .modal-overlay.show { opacity: 1; pointer-events: all; }
+        .modal-card { background: var(--bg-card); border: 1px solid var(--primary); padding: 40px 30px; border-radius: 30px; text-align: center; width: 85%; max-width: 350px; transform: scale(0.9); transition: 0.3s; }
+        .modal-overlay.show .modal-card { transform: scale(1); }
+
+        /* LOADER */
+        .loader { width: 40px; height: 40px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s infinite linear; margin: 20px auto; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+    </style>
+</head>
+<body>
+
+    <!-- ASSETS -->
+    <div class="ambient-glow"></div>
+    <div id="star-field"></div>
+    <audio id="sfx-win" src="https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3"></audio>
+    <audio id="sfx-lose" src="https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3"></audio>
+    <audio id="sfx-click" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
+
+    <!-- 1. LOGIN -->
+    <div id="scr-login" class="flex-center flex-col" style="position:fixed; inset:0; z-index:500; background:var(--bg-body); padding:20px;">
+        <h1 class="logo-text">QuranCosmos</h1>
+        <div style="font-size:12px; font-weight:700; color:var(--text-muted); letter-spacing:4px; margin-bottom:40px;">FINAL VERSION</div>
+        <button onclick="app.init()" class="btn-main" style="width:100%; max-width:250px;" id="btn-start">START</button>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="scr-main" class="hidden" style="height:100%; flex-direction:column;">
+        
+        <!-- Header -->
+        <div class="header">
+            <div class="xp-pill"><i data-lucide="gem" size="16"></i> <span id="xp-disp">0</span></div>
+            <div class="icon-btn" onclick="app.toggleSettings()"><i data-lucide="settings-2" size="20" color="var(--text-muted)"></i></div>
+        </div>
+
+        <!-- TABS -->
+        <div style="flex:1; overflow:hidden; position:relative;">
+            
+            <!-- MAP -->
+            <div id="tab-map" class="tab-content">
+                <div id="map-loader" class="loader" style="margin-top:50px;"></div>
+                <div class="map-wrapper" id="map-nodes"></div>
+            </div>
+
+            <!-- QUESTS -->
+            <div id="tab-quests" class="tab-content hidden">
+                <h2 style="padding:20px 20px 0;" class="lang-quests">Daily Missions</h2>
+                <div id="quest-list"></div>
+            </div>
+
+            <!-- SHOP -->
+            <div id="tab-shop" class="tab-content hidden">
+                <h2 style="padding:20px 20px 0;" class="lang-shop">Cosmic Store</h2>
+                <div class="grid-2" id="shop-list">
+                    <div class="shop-item"><i data-lucide="palette" size="32" color="var(--accent)"></i><p>Themes</p></div>
+                    <div class="shop-item"><i data-lucide="zap" size="32" color="var(--gold)"></i><p>Powerups</p></div>
+                </div>
+            </div>
+
+            <!-- PROFILE -->
+            <div id="tab-me" class="tab-content hidden flex-center flex-col" style="padding-top:40px;">
+                <div style="width:100px; height:100px; background:var(--accent); border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:40px; margin-bottom:20px; border:4px solid var(--bg-card);">👨‍🚀</div>
+                <h2 class="lang-student">Student</h2>
+                <div style="color:var(--text-muted);">Current: <span id="prof-curr">Al-Fatiha</span></div>
+            </div>
+
+        </div>
+
+        <!-- Bottom Nav -->
+        <div class="nav-bar">
+            <div class="nav-item active" onclick="app.tab('map', this)"><i data-lucide="map"></i><span class="lang-map">MAP</span></div>
+            <div class="nav-item" onclick="app.tab('quests', this)"><i data-lucide="scroll"></i><span class="lang-quests">QUESTS</span></div>
+            <div class="nav-item" onclick="app.tab('shop', this)"><i data-lucide="store"></i><span class="lang-shop">SHOP</span></div>
+            <div class="nav-item" onclick="app.tab('me', this)"><i data-lucide="user"></i><span class="lang-me">ME</span></div>
+        </div>
+
+    </div>
+
+    <!-- GAME OVERLAY -->
+    <div id="scr-game" class="hidden game-screen">
+        <div class="header">
+            <div class="icon-btn" onclick="app.closeGame()"><i data-lucide="arrow-left"></i></div>
+            <div class="flex-col flex-center">
+                <div style="font-weight:700; color:var(--accent); font-size:14px;" id="gm-title">Surah</div>
+                <div style="font-size:10px; color:var(--text-muted);">AYAH <span id="gm-step">1</span></div>
+            </div>
+            <div style="color:var(--danger); font-weight:bold; display:flex; gap:5px;"><i data-lucide="heart" fill="currentColor" size="18"></i> <span id="gm-lives">3</span></div>
+        </div>
+
+        <div class="game-stage">
+            <div id="game-loader" class="loader hidden"></div>
+            <div id="game-content" class="w-full hidden"></div>
+        </div>
+
+        <div class="footer">
+            <button id="btn-check" class="btn-main" onclick="app.check()" disabled>CHECK</button>
+        </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="overlay" class="overlay" onclick="app.toggleSettings()"></div>
+    <div id="drawer" class="drawer">
+        <h2 style="margin-top:0;" class="lang-settings">Settings</h2>
+        
+        <div style="margin-bottom:20px;">
+            <p style="font-size:12px; color:var(--text-muted); font-weight:700;">LANGUAGE</p>
+            <button class="lang-btn" onclick="app.setLang('en')">🇬🇧 English</button>
+            <button class="lang-btn" onclick="app.setLang('hi')">🇮🇳 Hindi (हिंदी)</button>
+            <button class="lang-btn" onclick="app.setLang('ur')">🇵🇰 Urdu (اردو)</button>
+        </div>
+
+        <div style="margin-bottom:20px;">
+            <p style="font-size:12px; color:var(--text-muted); font-weight:700;">FONT SIZE</p>
+            <input type="range" min="1.2" max="2.5" step="0.1" value="1.5" style="width:100%; accent-color:var(--primary);" oninput="app.setFont(this.value)">
+        </div>
+    </div>
+
+    <!-- RESULT MODAL -->
+    <div id="modal-res" class="modal-overlay">
+        <div class="modal-card">
+            <i data-lucide="check-circle" size="64" color="var(--primary)"></i>
+            <h2 style="margin:10px 0;" class="lang-correct">Correct!</h2>
+            <p style="color:var(--text-muted); font-size:14px;">+10 XP</p>
+            <button class="btn-main" onclick="app.next()" class="lang-cont">CONTINUE</button>
+        </div>
+    </div>
+
+    <script>
+        // --- TRANSLATIONS ---
+        const LANG = {
+            en: { start: "START", map: "MAP", quests: "QUESTS", shop: "SHOP", me: "ME", settings: "Settings", correct: "Correct!", cont: "CONTINUE", listen: "LISTEN & ARRANGE", mean: "MEANING", translate: "TRANSLATE", which: "WHICH MEANS", try: "Try Again", student: "Student", legal: "Legal & Privacy" },
+            hi: { start: "शुरू करें", map: "नक्शा", quests: "मिशन", shop: "दुकान", me: "प्रोफाइल", settings: "सेटिंग्स", correct: "सही जवाब!", cont: "आगे बढ़ें", listen: "सुनें और जोड़ें", mean: "अर्थ", translate: "अनुवाद करें", which: "किसका मतलब है", try: "पुनः प्रयास करें", student: "छात्र", legal: "कानूनी" },
+            ur: { start: "شروع کریں", map: "نقشہ", quests: "مشن", shop: "دکان", me: "پروفائل", settings: "ترتیبات", correct: "درست!", cont: "جاری رکھیں", listen: "سنیں اور ترتیب دیں", mean: "ترجمہ", translate: "ترجمہ کریں", which: "کس کا مطلب ہے", try: "دوبارہ کوشش کریں", student: "طالب علم", legal: "قانونی نوٹس" }
+        };
+
+        const QUESTS = [ { txt: "Complete 1 Level", progress: 0, target: 1 }, { txt: "Earn 100 XP", progress: 0, target: 100 } ];
+
+        // --- APP ENGINE ---
+        const app = {
+            state: { xp: 0, currentLevelIndex: 0, lives: 3, userAns: null, lang: 'en', syllabus: [] },
+
+            init: function() {
+                this.genStars();
+                const s = localStorage.getItem('qc_final_perfected');
+                if(s) {
+                    this.state = Object.assign(this.state, JSON.parse(s));
+                } else {
+                    const sysLang = navigator.language || navigator.userLanguage; 
+                    if(sysLang.startsWith('hi')) this.state.lang = 'hi';
+                    else if(sysLang.startsWith('ur')) this.state.lang = 'ur';
+                }
+
+                this.applyLang(this.state.lang);
+                document.getElementById('scr-login').classList.add('hidden');
+                document.getElementById('scr-main').classList.remove('hidden');
+                document.getElementById('scr-main').style.display = 'flex';
+                
+                this.fetchMap();
+                this.renderQuests();
+                this.updateUI();
+                lucide.createIcons();
+            },
+
+            genStars: function() {
+                const c = document.getElementById('star-field');
+                for(let i=0; i<40; i++) {
+                    const d = document.createElement('div');
+                    d.className = 'star';
+                    d.style.left = Math.random()*100+'%'; d.style.top = Math.random()*100+'%';
+                    d.style.width = (Math.random()*2+1)+'px'; d.style.height = d.style.width;
+                    c.appendChild(d);
+                }
+            },
+
+            updateUI: function() { document.getElementById('xp-disp').innerText = this.state.xp; },
+
+            // --- LANGUAGE ---
+            setLang: function(code) {
+                this.state.lang = code;
+                this.applyLang(code);
+                this.toggleSettings();
+                this.save();
+            },
+
+            applyLang: function(code) {
+                const t = LANG[code];
+                document.getElementById('btn-start').innerText = t.start;
+                document.getElementById('btn-check').innerText = t.check;
+                
+                document.querySelectorAll('.lang-map').forEach(e => e.innerText = t.map);
+                document.querySelectorAll('.lang-quests').forEach(e => e.innerText = t.quests);
+                document.querySelectorAll('.lang-shop').forEach(e => e.innerText = t.shop);
+                document.querySelectorAll('.lang-me').forEach(e => e.innerText = t.me);
+                document.querySelectorAll('.lang-settings').forEach(e => e.innerText = t.settings);
+                document.querySelectorAll('.lang-correct').forEach(e => e.innerText = t.correct);
+                document.querySelectorAll('.lang-cont').forEach(e => e.innerText = t.cont);
+                document.querySelectorAll('.lang-student').forEach(e => e.innerText = t.student);
+
+                if(code === 'ur') document.body.classList.add('lang-ur');
+                else document.body.classList.remove('lang-ur');
+            },
+
+            tab: function(id, el) {
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+                document.getElementById('tab-'+id).classList.remove('hidden');
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                el.classList.add('active');
+            },
+
+            toggleSettings: () => {
+                document.getElementById('drawer').classList.toggle('open');
+                document.getElementById('overlay').classList.toggle('open');
+            },
+            setFont: (v) => document.documentElement.style.setProperty('--font-scale', v),
+
+            // --- MAP ---
+            fetchMap: async function() {
+                const loader = document.getElementById('map-loader');
+                try {
+                    const res = await fetch('https://api.alquran.cloud/v1/surah');
+                    const data = await res.json();
+                    loader.classList.add('hidden');
+                    
+                    const list = data.data;
+                    const syllabus = [];
+                    
+                    // --- SORTING LOGIC ---
+                    // 1. Al-Fatiha (1)
+                    syllabus.push(list.find(s => s.number === 1));
+                    
+                    // 2. Juz 30 (114 -> 78) Reverse
+                    for(let i=114; i>=78; i--) {
+                        if(i !== 1) syllabus.push(list.find(s => s.number === i));
+                    }
+                    
+                    // 3. Juz 29 (67 -> 77) Ascending
+                    for(let i=67; i<=77; i++) {
+                        syllabus.push(list.find(s => s.number === i));
+                    }
+                    
+                    // 4. Juz 28 (58 -> 66) Ascending
+                    for(let i=58; i<=66; i++) {
+                        syllabus.push(list.find(s => s.number === i));
+                    }
+                    
+                    // 5. Rest (Juz 1 to 27) -> Surah 2 to 57
+                    for(let i=2; i<=57; i++) {
+                        syllabus.push(list.find(s => s.number === i));
+                    }
+                    
+                    this.state.syllabus = syllabus;
+                    this.renderMap();
+                    
+                } catch(e) {
+                    alert("Internet Check Karo!");
+                }
+            },
+
+            renderMap: function() {
+                const c = document.getElementById('map-nodes');
+                c.innerHTML = '';
+                let activeNode = null;
+
+                this.state.syllabus.forEach((surah, i) => {
+                    const row = document.createElement('div');
+                    row.className = 'level-row';
+                    
+                    const n = document.createElement('div');
+                    
+                    const isUnlocked = i <= this.state.currentLevelIndex;
+                    const isCompleted = i < this.state.currentLevelIndex;
+                    const isActive = i === this.state.currentLevelIndex;
+                    
+                    let cls = 'planet-node';
+                    if(isCompleted) cls += ' completed';
+                    else if(isActive) cls += ' current';
+                    else if(isUnlocked) cls += ' unlocked';
+                    else cls += ' locked';
+                    
+                    // Colors
+                    if(surah.number === 1) cls += ' sec-fatiha';
+                    else if(surah.number >= 78) cls += ' sec-juz30';
+                    else if(surah.number >= 67 && surah.number <= 77) cls += ' sec-juz29';
+                    
+                    n.className = cls;
+                    n.innerHTML = isCompleted ? `<i data-lucide="check" size="32" color="#020617"></i>` : 
+                                  isActive ? `<i data-lucide="play" fill="white" size="24"></i>` : `<i data-lucide="lock" size="18"></i>`;
+                    n.innerHTML += `<div class="planet-label">${surah.number}. ${surah.englishName}</div>`;
+                    
+                    if(isUnlocked) n.onclick = () => this.startGame(i);
+                    if(isActive) activeNode = n;
+                    
+                    row.appendChild(n);
+                    c.appendChild(row);
+                });
+                lucide.createIcons();
+                
+                // Auto Scroll Logic - Scroll to bottom first (start), then to active node
+                setTimeout(() => {
+                    if (activeNode) {
+                        activeNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    } else {
+                        const tab = document.getElementById('tab-map');
+                        tab.scrollTop = tab.scrollHeight;
+                    }
+                }, 500);
+            },
+
+            renderQuests: function() {
+                const c = document.getElementById('quest-list');
+                c.innerHTML = '';
+                QUESTS.forEach(q => {
+                    c.innerHTML += `
+                        <div class="info-card">
+                            <div style="flex:1;">
+                                <div style="font-weight:700;">${q.txt}</div>
+                                <div style="height:6px; background:#333; border-radius:10px; margin-top:5px; overflow:hidden;">
+                                    <div style="height:100%; width:${(q.progress/q.target)*100}%; background:var(--gold);"></div>
+                                </div>
+                            </div>
+                            <div style="font-size:12px; font-weight:bold;">${q.progress}/${q.target}</div>
+                        </div>
+                    `;
+                });
+            },
+
+            // --- GAME LOGIC ---
+            startGame: function(idx) {
+                this.state.currLvl = idx;
+                this.state.lives = 3;
+                document.getElementById('gm-lives').innerText = 3;
+                
+                // Set Surah/Ayah from syllabus
+                const surah = this.state.syllabus[idx];
+                this.state.currSurah = surah.number;
+                this.state.currAyah = 1;
+                this.state.surahMeta = surah;
+
+                document.getElementById('scr-main').classList.add('hidden');
+                document.getElementById('scr-game').classList.remove('hidden');
+                document.getElementById('gm-title').innerText = surah.englishName;
+                
+                this.fetchAyah();
+            },
+
+            fetchAyah: async function() {
+                const loader = document.getElementById('game-loader');
+                const content = document.getElementById('game-content');
+                loader.classList.remove('hidden');
+                content.classList.add('hidden');
+                document.getElementById('btn-check').disabled = true;
+                document.getElementById('gm-step').innerText = this.state.currAyah;
+
+                try {
+                    const s = this.state.currSurah;
+                    const a = this.state.currAyah;
+                    
+                    // Decide Game Type
+                    const isPuzzle = Math.random() > 0.4;
+                    this.state.gameType = isPuzzle ? 'puzzle' : 'vocab_ar'; // simplified
+
+                    const [resAud, resTxt, resTrn] = await Promise.all([
+                        fetch(`https://api.alquran.cloud/v1/ayah/${s}:${a}/ar.alafasy`),
+                        fetch(`https://api.alquran.cloud/v1/ayah/${s}:${a}/quran-uthmani`),
+                        fetch(`https://api.alquran.cloud/v1/ayah/${s}:${a}/en.sahih`)
+                    ]);
+
+                    const dAud = await resAud.json();
+                    const dTxt = await resTxt.json();
+                    const dTrn = await resTrn.json();
+
+                    this.state.ayahData = {
+                        audio: dAud.data.audio,
+                        text: dTxt.data.text,
+                        mean: dTrn.data.text
+                    };
+
+                    if(this.state.gameType === 'puzzle') this.uiPuzzle();
+                    else this.uiVocabAr();
+
+                    loader.classList.add('hidden');
+                    content.classList.remove('hidden');
+
+                } catch(e) {
+                    alert("Error loading level.");
+                    this.closeGame();
+                }
+            },
+
+            uiPuzzle: function() {
+                const d = this.state.ayahData;
+                const c = document.getElementById('game-content');
+                const t = LANG[this.state.lang];
+                
+                c.innerHTML = `
+                    <div class="q-card">
+                        <div class="audio-orb" onclick="app.aud('${d.audio}', this)"><i data-lucide="volume-2" size="28"></i></div>
+                        <div style="font-size:12px; color:var(--text-muted); font-weight:700; margin-bottom:10px;">${t.listen}</div>
+                        <div style="font-size:18px;">"${d.mean}"</div>
+                    </div>
+                    <div class="drop-zone" id="drop"></div>
+                    <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px; direction:rtl;" id="bank"></div>
+                `;
+                
+                this.state.userAns = [];
+                const words = d.text.split(' ');
+                const bank = document.getElementById('bank');
+                
+                [...words].sort(()=>Math.random()-0.5).forEach(w => {
+                    const e = document.createElement('div');
+                    e.className = 'chip ar-font'; e.innerText = w;
+                    e.onclick = () => app.mv(w, e);
+                    bank.appendChild(e);
+                });
+                lucide.createIcons();
+            },
+
+            uiVocabAr: function() {
+                const d = this.state.ayahData;
+                const c = document.getElementById('game-content');
+                const t = LANG[this.state.lang];
+                
+                // Simple Vocab Logic for Automation: Just show full text and ask translation (simplified)
+                // or Random word from Ayah. For reliability in automation, let's stick to puzzle mostly
+                // or ask for translation of full Ayah?
+                // Reverting to Puzzle for 100% stability in automation mode.
+                this.state.gameType = 'puzzle';
+                this.uiPuzzle();
+            },
+
+            mv: function(w, el) {
+                document.getElementById('sfx-click').play();
+                const d = document.getElementById('drop');
+                const b = document.getElementById('bank');
+                if(el.parentElement === b) { 
+                    this.state.userAns.push(w); d.appendChild(el); d.classList.add('active');
+                } else { 
+                    this.state.userAns = this.state.userAns.filter(x => x !== w); b.appendChild(el); 
+                    if(this.state.userAns.length === 0) d.classList.remove('active');
+                }
+                document.getElementById('btn-check').disabled = this.state.userAns.length === 0;
+            },
+
+            check: function() {
+                const correct = this.state.ayahData.text.trim();
+                const user = this.state.userAns.join(' ').trim();
+                
+                if(user === correct) {
+                    document.getElementById('sfx-win').play();
+                    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+                    document.getElementById('modal-res').classList.add('show');
+                } else {
+                    document.getElementById('sfx-lose').play();
+                    this.state.lives--;
+                    document.getElementById('gm-lives').innerText = this.state.lives;
+                    if(this.state.lives <= 0) { alert(LANG[this.state.lang].try); this.fetchAyah(); }
+                }
+            },
+
+            next: function() {
+                document.getElementById('modal-res').classList.remove('show');
+                this.state.xp += 10;
+                this.state.currAyah++;
+                
+                if(this.state.currAyah > this.state.surahMeta.numberOfAyahs) {
+                    alert(`Surah ${this.state.surahMeta.englishName} Completed!`);
+                    
+                    if(this.state.currLvl === this.state.currentLevelIndex) {
+                        this.state.currentLevelIndex++;
+                    }
+                    this.save();
+                    this.closeGame();
+                    this.renderMap();
+                } else {
+                    this.fetchAyah();
+                }
+                this.updateUI();
+                this.save();
+            },
+
+            closeGame: function() { document.getElementById('scr-game').classList.add('hidden'); document.getElementById('scr-main').classList.remove('hidden'); },
+            aud: function(u, el) { const a = new Audio(u); a.play(); el.classList.add('playing'); a.onended = () => el.classList.remove('playing'); },
+            save: function() { localStorage.setItem('qc_final_perfected', JSON.stringify(this.state)); }
+        };
+    </script>
+</body>
+</html>
+
+
